@@ -1,0 +1,64 @@
+{
+  "name": "labreel",
+  "version": "0.1.0",
+  "description": "Choreograph scientific protocols as continuous, looping motion graphics. Deterministic playback, frame-exact video capture, zero runtime dependencies in core.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Capsule Space Labs",
+  "homepage": "https://capsulelabs.space",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soneeshkothagundla/labreel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/soneeshkothagundla/labreel/issues"
+  },
+  "keywords": [
+    "motion-graphics",
+    "animation",
+    "timeline",
+    "scientific-visualization",
+    "dataviz",
+    "pixijs",
+    "gsap",
+    "canvas",
+    "webgl",
+    "protocol",
+    "explainer",
+    "deterministic",
+    "video-capture"
+  ],
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./pixi": "./src/adapters/pixi.js",
+    "./canvas": "./src/adapters/canvas2d.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "example": "node -e \"console.log('open examples/index.html over http://, e.g. npx serve .')\""
+  },
+  "peerDependencies": {
+    "gsap": ">=3.12",
+    "pixi.js": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "gsap": { "optional": true },
+    "pixi.js": { "optional": true }
+  },
+  "devDependencies": {
+    "gsap": "^3.15.0",
+    "pixi.js": "^8.19.0"
+  }
+}

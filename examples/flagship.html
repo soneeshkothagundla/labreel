@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Flagship Experiment — Capsule Space Labs</title>
+<style>
+  :root {
+    --void: #05070a;
+    --ink: #f2f7fb;
+    --ink-dim: #93a4b3;
+    --signal: #1fff7e;
+    --rule: #2c3a47;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--void);
+    color: var(--ink);
+    font-family: Inter, "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+  #stage canvas { display: block; }
+
+  /* Chrome is deliberately near-invisible. It fades out after five seconds of
+     no pointer movement so nothing competes with the reel on a projector. */
+  #chrome {
+    position: fixed;
+    inset: auto 0 0 0;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 20px 18px;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    background: linear-gradient(to top, rgba(5,7,10,0.85), transparent);
+    opacity: 0;
+    transition: opacity 400ms ease;
+    pointer-events: none;
+  }
+  #chrome.show { opacity: 1; pointer-events: auto; }
+  #chrome kbd {
+    display: inline-block;
+    min-width: 20px;
+    padding: 2px 6px;
+    margin-right: 6px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11px;
+    color: var(--ink);
+  }
+  #chrome span { white-space: nowrap; }
+
+  #status {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    color: var(--ink-dim);
+  }
+  #status.hidden { display: none; }
+  #status .bar {
+    width: 220px;
+    height: 2px;
+    margin: 14px auto 0;
+    background: var(--rule);
+    overflow: hidden;
+  }
+  #status .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--signal);
+    transition: width 200ms linear;
+  }
+  #status .err { color: #ff5c5c; max-width: 520px; line-height: 1.6; text-transform: none; letter-spacing: 0; }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="status">
+  <div id="status-text">Loading</div>
+  <div class="bar"><i id="status-bar"></i></div>
+</div>
+
+<div id="chrome">
+  <span><kbd>Space</kbd>Pause</span>
+  <span><kbd>←</kbd><kbd>→</kbd>Scrub 5s</span>
+  <span><kbd>1</kbd>–<kbd>9</kbd>Jump to beat</span>
+  <span><kbd>R</kbd>Record video</span>
+  <span><kbd>F</kbd>Fullscreen</span>
+</div>
+
+<script type="module">
+import * as PIXI from '../vendor/pixi.min.mjs';
+import { Reel, Transport, captureReel, WebMSink, downloadBlob } from '../src/index.js';
+import { PixiRenderer } from '../src/adapters/pixi.js';
+import { Canvas2DRenderer, webglAvailable } from '../src/adapters/canvas2d.js';
+import { FLAGSHIP_REEL } from '../src/scenes/flagship-reel.js';
+
+const statusEl = document.getElementById('status');
+const statusText = document.getElementById('status-text');
+const statusBar = document.getElementById('status-bar');
+const chrome = document.getElementById('chrome');
+const stage = document.getElementById('stage');
+
+const SCENE_IDS = FLAGSHIP_REEL.beats.map((b) => b.id);
+
+function setStatus(msg, pct) {
+  statusText.textContent = msg;
+  if (pct != null) statusBar.style.width = `${Math.round(pct * 100)}%`;
+}
+
+function fail(msg) {
+  statusEl.classList.remove('hidden');
+  statusText.innerHTML = `<div class="err">${msg}</div>`;
+  statusBar.parentElement.style.display = 'none';
+}
+
+async function loadScenes() {
+  const mods = [];
+  for (let i = 0; i < SCENE_IDS.length; i++) {
+    const id = SCENE_IDS[i];
+    setStatus(`Loading ${id}`, i / SCENE_IDS.length);
+    try {
+      const m = await import(`../src/scenes/${id}.js`);
+      mods.push(m.default);
+    } catch (e) {
+      // A missing scene must not take the whole reel down mid-presentation.
+      // The beat still plays, it just renders as its title card.
+      console.warn(`labreel: scene "${id}" failed to load`, e);
+    }
+  }
+  return mods;
+}
+
+async function main() {
+  const reel = new Reel(FLAGSHIP_REEL);
+  const scenes = await loadScenes();
+  setStatus('Starting renderer', 0.95);
+
+  let renderer;
+  if (webglAvailable()) {
+    renderer = new PixiRenderer({
+      mount: stage,
+      PIXI,
+      scenes,
+      width: 1920,
+      height: 1080,
+    });
+  } else {
+    console.warn('labreel: WebGL unavailable, falling back to Canvas2D');
+    renderer = new Canvas2DRenderer({ mount: stage, scenes: [], width: 1920, height: 1080 });
+  }
+
+  try {
+    await renderer.init();
+  } catch (e) {
+    return fail(`Renderer failed to start.<br><br>${e.message}`);
+  }
+
+  const fit = () => {
+    renderer.resize?.(window.innerWidth, window.innerHeight);
+    if (renderer.canvas && renderer instanceof Canvas2DRenderer) {
+      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      renderer.canvas.style.width = `${1920 * s}px`;
+      renderer.canvas.style.height = `${1080 * s}px`;
+    }
+  };
+  fit();
+  window.addEventListener('resize', fit);
+
+  const transport = new Transport(reel, renderer);
+  transport.play();
+
+  statusEl.classList.add('hidden');
+  window.__reel = { reel, transport, renderer };
+
+  // Chrome reveal on pointer movement, auto-hide after five seconds idle.
+  let hideTimer;
+  const reveal = () => {
+    chrome.classList.add('show');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => chrome.classList.remove('show'), 5000);
+  };
+  window.addEventListener('pointermove', reveal);
+  reveal();
+
+  let recording = false;
+  window.addEventListener('keydown', async (e) => {
+    if (e.key === ' ') {
+      e.preventDefault();
+      if (transport.clock.running) transport.pause();
+      else transport.play();
+      reveal();
+    } else if (e.key === 'ArrowRight') {
+      transport.seek(transport.clock.time + 5);
+    } else if (e.key === 'ArrowLeft') {
+      transport.seek(Math.max(0, transport.clock.time - 5));
+    } else if (e.key >= '1' && e.key <= '9') {
+      const b = reel.beats[Number(e.key) - 1];
+      if (b) transport.seek(b.at + 0.05);
+    } else if (e.key === '0') {
+      transport.seek(0);
+    } else if (e.key.toLowerCase() === 'f') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen?.();
+    } else if (e.key.toLowerCase() === 'r' && !recording) {
+      // Frame-exact export. This is the offline fallback for the talk: the
+      // video is generated from the same reel, so it can never drift.
+      recording = true;
+      transport.pause();
+      statusEl.classList.remove('hidden');
+      statusBar.parentElement.style.display = '';
+      setStatus('Recording', 0);
+      try {
+        const blob = await captureReel(reel, renderer, new WebMSink(), {
+          fps: 60,
+          cycles: 1,
+          onProgress: (p) => setStatus(`Recording ${Math.round(p * 100)}%`, p),
+        });
+        downloadBlob(blob, 'capsule-flagship-experiment.webm');
+        setStatus('Saved', 1);
+      } catch (err) {
+        setStatus(`Recording failed: ${err.message}`);
+      }
+      setTimeout(() => {
+        statusEl.classList.add('hidden');
+        recording = false;
+        transport.play();
+      }, 1200);
+    }
+  });
+}
+
+main().catch((e) => {
+  console.error(e);
+  fail(`Could not start the simulation.<br><br>${e.message}`);
+});
+</script>
+</body>
+</html>
