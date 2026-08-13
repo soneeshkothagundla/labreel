@@ -1,0 +1,28 @@
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { existsSync, statSync } from 'node:fs';
+import { extname, join, normalize } from 'node:path';
+const ROOT = 'C:/Users/sonee/Downloads/Capsule Sim Options';
+const MIME={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.png':'image/png','.json':'application/json'};
+const server = createServer(async (req,res)=>{
+  let u = decodeURIComponent(req.url.split('?')[0]);
+  if(u==='/') u='/index.html';
+  const p = normalize(join(ROOT,u));
+  if(!existsSync(p)||statSync(p).isDirectory()) return res.writeHead(404).end('nf');
+  res.writeHead(200,{'Content-Type':MIME[extname(p).toLowerCase()]??'application/octet-stream'});
+  res.end(await readFile(p));
+});
+await new Promise(r=>server.listen(4655,r));
+const b = await chromium.launch({args:['--enable-unsafe-swiftshader','--use-gl=angle','--ignore-gpu-blocklist']});
+const page = await b.newPage({viewport:{width:1920,height:1080}});
+const errs=[];
+page.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+page.on('pageerror',e=>errs.push('PAGEERROR: '+e.message));
+await page.goto('http://localhost:4655/engine/index.html?renderer=pixi',{waitUntil:'load'});
+await page.waitForFunction(()=>window.__reel?.transport,null,{timeout:30000}).catch(()=>{});
+await page.waitForTimeout(2000);
+const n = await page.evaluate(()=>window.__reel? [...window.__reel.renderer.scenes.keys()].length : -1);
+console.log('engine copy scenes loaded:', n, '/11');
+console.log(errs.length? 'ERRORS:\n'+errs.slice(0,6).join('\n') : 'no console errors');
+await b.close(); server.close();

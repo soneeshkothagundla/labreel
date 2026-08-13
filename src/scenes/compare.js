@@ -1,9 +1,9 @@
 /**
  * Scene: compare — "Ground against flight". The results figure.
  *
- * Two grouped pairs (STANDARD, HIGH-PEG), each with a measured ground bar and a
- * *predicted* flight bar, built in the grammar of a real paper figure: gridded,
- * axis-labelled, error-barred, honest.
+ * Two grouped pairs (STANDARD, HIGH-PEG), each with a modelled ground bar and a
+ * modelled flight bar, built in the grammar of a real paper figure: gridded,
+ * axis-labelled, error-barred, honest. Neither series is measured; see BARS.
  *
  * The one thing this scene must not fumble is that the flight bars are a
  * hypothesis, not data. That is carried three ways so it never rests on colour:
@@ -209,7 +209,7 @@ export default {
 
     // Sits above the plot rather than inside it: at 245 it collided with the
     // 79.4 value label on the first standard bar.
-    const badgeLabel = text('ILLUSTRATIVE — NO DATA COLLECTED YET', {
+    const badgeLabel = text('ILLUSTRATIVE · NO DATA COLLECTED YET', {
       size: 32, color: palette.lipid, weight: '600', letterSpacing: 1.5,
     });
     badgeLabel.anchor.set(0, 0.5);
@@ -222,12 +222,12 @@ export default {
     keyLabel.position.set(RAIL_X, 214);
     textLayer.addChild(keyLabel);
 
-    const legGround = text('GROUND — MODELLED', { size: 30, color: palette.ink });
+    const legGround = text('GROUND · MODELLED', { size: 30, color: palette.ink });
     legGround.anchor.set(0, 0.5);
     legGround.position.set(RAIL_X + 70, 281);
     textLayer.addChild(legGround);
 
-    const legFlight = text('FLIGHT — PREDICTED', { size: 30, color: palette.signal });
+    const legFlight = text('FLIGHT · PREDICTED', { size: 30, color: palette.signal });
     legFlight.anchor.set(0, 0.5);
     legFlight.position.set(RAIL_X + 70, 337);
     textLayer.addChild(legFlight);

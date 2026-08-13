@@ -20,7 +20,7 @@ export const FLAGSHIP_BEATS = [
     duration: 9,
     fade: 1.2,
     title: 'Flagship Experiment',
-    subtitle: 'Does microgravity change how mRNA vaccines survive a freeze?',
+    subtitle: 'Does microgravity change how much mRNA leaks out of its carrier?',
     data: { readout: 'CAPSULE SPACE LABS' },
   },
   {
