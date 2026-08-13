@@ -517,8 +517,13 @@ export default {
     const SSIZE = Math.max(30, Math.round(H * 0.0296)); // 32
     const titleL = mkLabel('1 g  /  GROUND', cxL, TITLE_Y, TSIZE, '700', palette.ink, 4);
     const titleR = mkLabel('MICROGRAVITY', cxR, TITLE_Y, TSIZE, '700', palette.ink, 4);
+    // NOT "convection + settling". Sedimentation is absent in BOTH conditions:
+    // the gravitational length scale kT/(m'g) is about 16.3 mm, which exceeds the
+    // liquid column in a 25 uL tube, and the Peclet number is about 0.61. Showing
+    // particles settling on the ground side would contradict the physics that
+    // makes convection the interesting variable in the first place.
     const subL = mkLabel(
-      'CONVECTION  +  SETTLING',
+      'BULK  CONVECTION',
       cxL,
       SUB_Y,
       SSIZE,
@@ -660,13 +665,12 @@ export default {
       }
       g.stroke({ width: 3, color: palette.inkFaint, alpha: 0.55 });
 
-      // pellet: only gravity makes one
-      if (ground) {
-        const ph = 6 + 24 * cubicOut(p) + 1.2 * Math.sin(t * 1.7);
-        g.ellipse(cx, LIQ_BOT - ph * 0.9, FLOW_HW * 0.9, ph)
-          .fill({ color: palette.lipid, alpha: 0.34 })
-          .stroke({ width: 3, color: palette.lipid, alpha: 0.8 });
-      }
+      // No pellet on either side. An earlier version grew one on the ground tube,
+      // which was wrong: at 25 uL the gravitational length scale kT/(m'g) of about
+      // 16.3 mm exceeds the liquid column, Stokes settling over 20 h is ~20 um
+      // against ~0.80 mm of Brownian displacement, and Pe is about 0.61. Particles
+      // do not sort by gravity here. The only honest difference between the two
+      // tubes is bulk convective transport, which is drawn above.
     };
 
     // ------------------------------------------------------------------ frame
