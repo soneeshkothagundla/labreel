@@ -1,0 +1,26 @@
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { extname, join } from 'node:path';
+const ROOT = process.cwd();
+const MIME={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css'};
+const server = createServer(async (req,res)=>{
+  const p = join(ROOT, decodeURIComponent(req.url.split('?')[0]));
+  if(!existsSync(p)) return res.writeHead(404).end('nf');
+  res.writeHead(200,{'Content-Type':MIME[extname(p)]??'application/octet-stream'});
+  res.end(await readFile(p));
+});
+await new Promise(r=>server.listen(4601,r));
+const b = await chromium.launch();
+const page = await b.newPage({viewport:{width:1920,height:1080}});
+const errs=[];
+page.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+page.on('pageerror',e=>errs.push('PAGEERROR: '+e.message));
+await page.goto('http://localhost:4601/examples/smoke.html',{waitUntil:'load'});
+await page.waitForTimeout(2500);
+const ok = await page.evaluate(()=>window.__smokeOK===true);
+await page.screenshot({path:'shots/smoke.png'});
+console.log('smokeOK:', ok);
+console.log(errs.length? 'ERRORS:\n'+errs.join('\n') : 'no console errors');
+await b.close(); server.close();

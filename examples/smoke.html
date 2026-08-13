@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>labreel smoke</title>
+<style>html,body{margin:0;height:100%;background:#05070a;overflow:hidden}#stage{position:fixed;inset:0}</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+import * as PIXI from '../vendor/pixi.min.mjs';
+import { Reel, Transport } from '../src/index.js';
+import { PixiRenderer } from '../src/adapters/pixi.js';
+import { clamp01, cubicOut, settle } from '../src/core/easing.js';
+
+// Exercises every Pixi v8 call the scene contract tells agents to use, so a
+// wrong API in the spec surfaces here instead of in eleven scenes at once.
+const probe = {
+  id: 'probe',
+  build(ctx) {
+    const { PIXI, palette, width, height, text } = ctx;
+    const view = new PIXI.Container();
+
+    const g = new PIXI.Graphics();
+    view.addChild(g);
+
+    let s = 12345;
+    const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const dots = Array.from({ length: 40 }, () => ({
+      x: rnd() * width, y: rnd() * 700 + 60, r: rnd() * 4 + 2, p: rnd() * 6.28,
+    }));
+
+    const label = text('PIPELINE OK', { size: 44, weight: '600', color: palette.signal, mono: true, letterSpacing: 3 });
+    label.anchor.set(0.5);
+    label.position.set(width / 2, 420);
+    view.addChild(label);
+
+    return {
+      view,
+      update(frame, weight, progress) {
+        const t = frame.time;
+        g.clear();
+        g.rect(120, 120, 500 * cubicOut(clamp01(progress * 2)), 8).fill({ color: palette.cold });
+        g.circle(width / 2, 620, 90 + Math.sin(t * 2) * 12).stroke({ width: 4, color: palette.signal, alpha: 0.8 });
+        g.ellipse(width / 2, 620, 220, 70).stroke({ width: 3, color: palette.rule });
+        g.roundRect(1300, 160, 300, 120, 12).fill({ color: palette.panel });
+        g.moveTo(200, 800).lineTo(1700, 800).stroke({ width: 3, color: palette.inkFaint, alpha: 0.6 });
+        for (const d of dots) {
+          const a = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 1.5 + d.p));
+          g.circle(d.x, d.y + Math.sin(t + d.p) * 8, d.r).fill({ color: palette.ink, alpha: a * weight });
+        }
+        label.scale.set(0.9 + 0.1 * settle(clamp01(progress * 3)));
+      },
+    };
+  },
+};
+
+const reel = new Reel({
+  id: 'smoke', duration: 12,
+  beats: [
+    { id: 'probe', at: 0, duration: 7, fade: 1, title: 'Smoke test', subtitle: 'Validating the Pixi v8 scene contract', data: { readout: 'OK' } },
+    { id: 'probe2', at: 6, duration: 6, fade: 1, title: 'Second beat', subtitle: 'Cross-dissolve check', data: { readout: '2/2' } },
+  ],
+  tracks: [{ key: 'bloom', initial: 0, cues: [{ at: 0, duration: 6, to: 1 }] }],
+});
+
+const renderer = new PixiRenderer({ mount: document.getElementById('stage'), PIXI, scenes: [probe], width: 1920, height: 1080 });
+await renderer.init();
+renderer.resize(window.innerWidth, window.innerHeight);
+new Transport(reel, renderer).play();
+window.__reel = { reel, renderer, transport: new Transport(reel, renderer) };
+window.__smokeOK = true;
+</script>
+</body>
+</html>

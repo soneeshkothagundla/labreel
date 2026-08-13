@@ -54,11 +54,25 @@
     "pixi.js": ">=8"
   },
   "peerDependenciesMeta": {
-    "gsap": { "optional": true },
-    "pixi.js": { "optional": true }
+    "gsap": {
+      "optional": true
+    },
+    "pixi.js": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@babylonjs/core": "^9.20.1",
+    "@svgdotjs/svg.js": "^3.2.8",
+    "babylonjs": "^9.20.1",
+    "d3": "^7.9.0",
     "gsap": "^3.15.0",
-    "pixi.js": "^8.19.0"
+    "konva": "^10.3.0",
+    "ogl": "^1.0.11",
+    "pixi.js": "^8.19.0",
+    "playwright": "^1.62.1",
+    "regl": "^2.1.1",
+    "roughjs": "^4.6.6",
+    "zdog": "^1.1.3"
   }
 }

@@ -1,0 +1,38 @@
+{
+  "shots": [
+    {
+      "t": 80,
+      "beat": "compare",
+      "file": "C:\\Users\\sonee\\labreel\\shots\\t080-compare.png"
+    }
+  ],
+  "errors": [],
+  "scenes": {
+    "loaded": [
+      "cold-open",
+      "lnp",
+      "leak",
+      "assay",
+      "formulations",
+      "freeze",
+      "launch",
+      "microgravity",
+      "readout",
+      "compare",
+      "why"
+    ],
+    "expected": [
+      "cold-open",
+      "lnp",
+      "leak",
+      "assay",
+      "formulations",
+      "freeze",
+      "launch",
+      "microgravity",
+      "readout",
+      "compare",
+      "why"
+    ]
+  }
+}

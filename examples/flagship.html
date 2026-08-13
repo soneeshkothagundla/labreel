@@ -155,8 +155,16 @@ async function main() {
   const scenes = await loadScenes();
   setStatus('Starting renderer', 0.95);
 
+  // ?renderer=pixi forces WebGL even when the guard rejects it. The guard
+  // deliberately rejects SwiftShader, which is exactly what headless Chromium
+  // uses, so the screenshot harness would otherwise test the fallback path
+  // and never look at the real renderer.
+  const forced = new URLSearchParams(location.search).get('renderer');
+
   let renderer;
-  if (webglAvailable()) {
+  if (forced === 'canvas') {
+    renderer = new Canvas2DRenderer({ mount: stage, scenes: [], width: 1920, height: 1080 });
+  } else if (forced === 'pixi' || webglAvailable()) {
     renderer = new PixiRenderer({
       mount: stage,
       PIXI,
