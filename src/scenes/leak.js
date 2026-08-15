@@ -127,12 +127,12 @@ export default {
 
     // Ice shards: each is a spike that grows from its outer base inward.
     const SHARDS = [];
-    const N_SH = 24;
+    const N_SH = 13;
     for (let i = 0; i < N_SH; i++) {
       SHARDS.push({
         ang: (i / N_SH) * TAU + (rnd() - 0.5) * 0.17,
         base: RMAX * (0.87 + rnd() * 0.13), // nucleation radius, out in the medium
-        tip: R * (0.78 + rnd() * 0.44), // where the point ends up, some inside the shell
+        tip: R * (0.94 + rnd() * 0.3), // where the point ends up, some inside the shell
         wid: R * (0.045 + rnd() * 0.075),
         delay: rnd() * 0.5, // staggered so the field crystallises, not pops
         span: 0.3 + rnd() * 0.3,

@@ -14,6 +14,8 @@
  * important is encoded in colour alone.
  */
 
+import { makeLayout, scaleLabelAt } from '../core/layout.js';
+
 export const PALETTE = {
   void: 0x05070a,
   ground: 0x0b1015,
@@ -87,6 +89,10 @@ export class PixiRenderer {
       palette: this.palette,
       width: this.width,
       height: this.height,
+      // Scenes are authored against the 1920x1080 master, not the surface the
+      // renderer happens to be running at, so the layout is built from the
+      // design box and letterboxed by resize().
+      layout: makeLayout(1920, 1080),
       font: DEFAULT_FONT,
       mono: MONO_FONT,
       text: (str, opts = {}) => this._text(str, opts),
@@ -122,48 +128,120 @@ export class PixiRenderer {
 
   _buildOverlay() {
     const { PIXI } = this;
-    const w = this.width;
-    const h = this.height;
-    const pad = Math.round(w * 0.045);
+    const L = this.ctx.layout;
+    const { W, H, pad, titleBand, readout, rail } = L;
 
-    // Vignette keeps the eye centre-frame under bright room light.
-    const vignette = new PIXI.Graphics();
-    vignette
-      .rect(0, 0, w, h)
-      .fill({
-        color: this.palette.void,
-        alpha: 0,
-      });
-    this.overlay.addChild(vignette);
+    // Scrim under the title lane. This is what lets the subject bleed off the
+    // bottom of the frame without the type having to fight it: the picture
+    // passes underneath, the words stay legible, and neither is cropped.
+    const scrim = new PIXI.Graphics();
+    const bands = 14;
+    for (let i = 0; i < bands; i++) {
+      const t0 = i / bands;
+      const t1 = (i + 1) / bands;
+      scrim
+        .rect(0, titleBand.y - pad + (titleBand.h + pad) * t0, W, (titleBand.h + pad) / bands + 1)
+        .fill({ color: this.palette.void, alpha: 0.86 * t1 * t1 });
+    }
+    this.overlay.addChild(scrim);
 
-    this.titleText = this._text('', { size: Math.round(h * 0.052), weight: '600' });
-    this.titleText.position.set(pad, h - pad - Math.round(h * 0.11));
+    this.titleText = this._text('', { size: Math.round(H * 0.052), weight: '600' });
+    this.titleText.position.set(titleBand.x, titleBand.y + Math.round(pad * 0.5));
     this.overlay.addChild(this.titleText);
 
     this.subText = this._text('', {
-      size: Math.round(h * 0.026),
+      size: Math.round(H * 0.026),
       color: this.palette.inkDim,
     });
-    this.subText.position.set(pad, h - pad - Math.round(h * 0.042));
+    this.subText.position.set(
+      titleBand.x,
+      titleBand.y + Math.round(pad * 0.5) + Math.round(H * 0.052 * 1.32)
+    );
     this.overlay.addChild(this.subText);
 
     this.readout = this._text('', {
-      size: Math.round(h * 0.024),
+      size: Math.round(H * 0.024),
       color: this.palette.signal,
       mono: true,
       letterSpacing: 1.5,
     });
     this.readout.anchor.set(1, 0);
-    this.readout.position.set(w - pad, pad);
+    this.readout.position.set(readout.x + readout.w, readout.y);
     this.overlay.addChild(this.readout);
+
+    /* -- scale rail --------------------------------------------------------
+       The film's only persistent chrome. A first-time viewer has no idea
+       whether they are looking at something 80 nanometres or 400 kilometres
+       across, and the reel moves between those two in ninety seconds. The rail
+       answers that continuously so the narration never has to. */
+    this.railGfx = new PIXI.Graphics();
+    this.overlay.addChild(this.railGfx);
+
+    this.railLabel = this._text('', {
+      size: Math.round(H * 0.021),
+      color: this.palette.cold,
+      mono: true,
+      letterSpacing: 1,
+    });
+    this.railLabel.anchor.set(1, 0.5);
+    this.overlay.addChild(this.railLabel);
+
+    this.railCap = this._text('SCALE', {
+      size: Math.round(H * 0.013),
+      color: this.palette.inkFaint,
+      mono: true,
+      letterSpacing: 2.4,
+    });
+    this.railCap.anchor.set(0.5, 1);
+    this.railCap.position.set(rail.x + rail.w / 2, rail.y - Math.round(H * 0.016));
+    this.overlay.addChild(this.railCap);
 
     // Progress hairline. No scrubber handle, no buttons: this reel never stops.
     this.progressBg = new PIXI.Graphics();
-    this.progressBg.rect(pad, h - pad, w - pad * 2, 2).fill({
+    this.progressBg.rect(pad, H - Math.round(pad * 0.5), W - pad * 2, 2).fill({
       color: this.palette.rule,
     });
     this.progressFg = new PIXI.Graphics();
     this.overlay.addChild(this.progressBg, this.progressFg);
+  }
+
+  /** Draw the scale rail for a given camera depth (0 nano .. 1 orbital). */
+  _drawRail(depth) {
+    const L = this.ctx.layout;
+    const { rail } = L;
+    const g = this.railGfx;
+    const d = Math.max(0, Math.min(1, depth));
+
+    g.clear();
+
+    // Axis. Nano at the bottom, orbital at the top, so "zooming out" reads as
+    // travelling up the rail, which matches the way the camera actually moves.
+    const axisX = rail.x + rail.w - 1;
+    g.moveTo(axisX, rail.y).lineTo(axisX, rail.y + rail.h).stroke({
+      width: 1,
+      color: this.palette.rule,
+    });
+
+    for (let i = 0; i <= 10; i++) {
+      const y = rail.y + rail.h * (i / 10);
+      const major = i % 5 === 0;
+      g.moveTo(axisX - (major ? 12 : 6), y)
+        .lineTo(axisX, y)
+        .stroke({ width: 1, color: this.palette.rule, alpha: major ? 0.9 : 0.5 });
+    }
+
+    const markerY = rail.y + rail.h * (1 - d);
+    g.moveTo(rail.x, markerY).lineTo(axisX, markerY).stroke({
+      width: 1,
+      color: this.palette.cold,
+      alpha: 0.55,
+    });
+    g.circle(axisX, markerY, 4.5).fill({ color: this.palette.cold });
+    g.circle(axisX, markerY, 9).stroke({ width: 1, color: this.palette.cold, alpha: 0.35 });
+
+    this.railLabel.position.set(rail.x - Math.round(L.pad * 0.18), markerY);
+    const label = scaleLabelAt(d);
+    if (this.railLabel.text !== label) this.railLabel.text = label;
   }
 
   /** Called once per frame by Transport. */
@@ -197,10 +275,21 @@ export class PixiRenderer {
       this.readout.alpha = a * 0.9;
     }
 
-    const pad = Math.round(this.width * 0.045);
+    const L = this.ctx.layout;
+    const railAlpha = frame.values?.railFade ?? 1;
+    this._drawRail(frame.values?.depth ?? 0);
+    this.railGfx.alpha = railAlpha;
+    this.railLabel.alpha = railAlpha;
+    this.railCap.alpha = railAlpha * 0.8;
+
     this.progressFg
       .clear()
-      .rect(pad, this.height - pad, (this.width - pad * 2) * frame.progress, 2)
+      .rect(
+        L.pad,
+        L.H - Math.round(L.pad * 0.5),
+        (L.W - L.pad * 2) * frame.progress,
+        2
+      )
       .fill({ color: this.palette.signal });
 
     this.app.renderer.render(this.app.stage);
