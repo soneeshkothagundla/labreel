@@ -131,23 +131,49 @@ export class PixiRenderer {
     const L = this.ctx.layout;
     const { W, H, pad, titleBand, readout, rail } = L;
 
-    // Scrim under the title lane. This is what lets the subject bleed off the
-    // bottom of the frame without the type having to fight it: the picture
-    // passes underneath, the words stay legible, and neither is cropped.
+    /* -- title lane occluder ----------------------------------------------
+       Four of the scenes in this reel predate the layout contract and draw
+       straight into the 1920x1080 box, so their axis labels, legends and scale
+       bars ran down through the title. Porting each of them is a rewrite of
+       several thousand lines; enforcing the lane here fixes all of them at
+       once and, more importantly, makes it impossible for the next scene
+       someone writes to reintroduce the problem.
+
+       The ramp is short and the floor is effectively opaque: a half-transparent
+       scrim is what let the spectrum plot's wavelength axis stay legible
+       underneath "Nothing has flown yet". */
     const scrim = new PIXI.Graphics();
-    const bands = 14;
+    const rampTop = titleBand.y - Math.round(pad * 0.85);
+    const rampH = Math.round(pad * 1.15);
+    const bands = 22;
     for (let i = 0; i < bands; i++) {
       const t0 = i / bands;
       const t1 = (i + 1) / bands;
       scrim
-        .rect(0, titleBand.y - pad + (titleBand.h + pad) * t0, W, (titleBand.h + pad) / bands + 1)
-        .fill({ color: this.palette.void, alpha: 0.86 * t1 * t1 });
+        .rect(0, rampTop + rampH * t0, W, rampH / bands + 1)
+        .fill({ color: this.palette.void, alpha: 0.985 * t1 * t1 });
     }
+    scrim
+      .rect(0, rampTop + rampH - 1, W, H - rampTop - rampH + 2)
+      .fill({ color: this.palette.void, alpha: 0.985 });
     this.overlay.addChild(scrim);
 
+    /* -- title lane --------------------------------------------------------
+       One pair of type, and its opacity is derived from the lead beat's own
+       boundaries rather than from beat weight.
+
+       Two earlier attempts failed here and are worth recording. Driving the
+       type off beat weight hard-swapped the string mid-dissolve, so the words
+       named one scene while two were on screen. Giving each beat its own slot
+       and cross-fading them was worse: both slots share a baseline, so the
+       outgoing and incoming strings rendered on top of each other and the
+       lower third turned to mush for the whole dissolve.
+
+       Type cannot cross-dissolve with type in the same position. It has to
+       dip: out, gap, in. Ramping on the lead beat's start and end does that,
+       and because it is a pure function of reel time it survives scrubbing. */
     this.titleText = this._text('', { size: Math.round(H * 0.052), weight: '600' });
     this.titleText.position.set(titleBand.x, titleBand.y + Math.round(pad * 0.5));
-    this.overlay.addChild(this.titleText);
 
     this.subText = this._text('', {
       size: Math.round(H * 0.026),
@@ -157,7 +183,7 @@ export class PixiRenderer {
       titleBand.x,
       titleBand.y + Math.round(pad * 0.5) + Math.round(H * 0.052 * 1.32)
     );
-    this.overlay.addChild(this.subText);
+    this.overlay.addChild(this.titleText, this.subText);
 
     this.readout = this._text('', {
       size: Math.round(H * 0.024),
@@ -252,7 +278,11 @@ export class PixiRenderer {
       const hit = frame.active.find((a) => a.beat.id === id);
       if (hit) {
         scene.view.visible = true;
-        scene.view.alpha = hit.weight;
+        // Constant-power crossfade. With a linear envelope both scenes sit near
+        // half alpha through the middle of a dissolve, and two half-strength
+        // subjects on a near-black ground read as one muddy picture rather than
+        // as either of them. sin() keeps the pair closer to full brightness.
+        scene.view.alpha = Math.sin(hit.weight * Math.PI * 0.5);
         scene.update?.(frame, hit.weight, hit.progress);
       } else if (scene.view.visible) {
         scene.view.visible = false;
@@ -260,18 +290,30 @@ export class PixiRenderer {
       }
     }
 
+    // The lead beat owns the lane outright. Swapping the string only while
+    // the lane is invisible is what keeps two titles from ever coexisting.
     const lead = frame.lead;
     if (lead) {
       const b = lead.beat;
+      const T = 0.55; // dip length at each end, seconds
+      const inA = (frame.time - b.at) / T;
+      const outA = (b.end - frame.time) / T;
+      const a = Math.max(0, Math.min(1, inA, outA));
+
+      // No latch on the swap. An earlier version only changed the string while
+      // the lane was already invisible, which is correct during playback and
+      // completely wrong under a seek: jumping straight to the middle of a beat
+      // left the previous title latched and the lane blank for the whole beat.
+      // None of that bookkeeping is needed, because the lead beat only changes
+      // at a boundary and `a` is already 0 there from both sides, so the text
+      // is swapped while invisible for free.
       if (this.titleText.text !== b.title) this.titleText.text = b.title;
       if (this.subText.text !== b.subtitle) this.subText.text = b.subtitle;
-      const r = b.data?.readout ?? '';
-      if (this.readout.text !== r) this.readout.text = r;
-
-      // Type fades with the beat so nothing pops on a hard cut.
-      const a = Math.min(1, lead.weight * 1.4);
       this.titleText.alpha = a;
       this.subText.alpha = a * 0.85;
+
+      const r = b.data?.readout ?? '';
+      if (this.readout.text !== r) this.readout.text = r;
       this.readout.alpha = a * 0.9;
     }
 
