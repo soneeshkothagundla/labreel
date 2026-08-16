@@ -153,7 +153,9 @@ export const FLAGSHIP_BEATS = [
     fade: 1.4,
     title: 'Capsule Space Labs',
     subtitle: 'Medicine has to survive the trip',
-    data: { readout: 'capsulelabs.space', depth: DEPTH.earth },
+    // No readout: the scene puts the URL centre-frame, and the rail has
+    // already faded, so the last shot carries exactly one green line.
+    data: { readout: '', depth: DEPTH.earth },
   },
 ];
 

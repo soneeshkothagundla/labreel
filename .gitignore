@@ -6,3 +6,6 @@ dist/
 coverage/
 *.webm
 *.mp4
+
+.vercel
+.env*
